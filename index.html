@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ramadan Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'system-ui', -apple-system, sans-serif;
+            touch-action: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 500px; /* Begrenzung für Desktop, auf Mobile 100% */
+            aspect-ratio: 9 / 16;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+            display: block;
+        }
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            pointer-events: none;
+            color: white;
+            z-index: 5;
+        }
+        .menu-screen {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+            padding: 20px;
+        }
+        .char-card {
+            background: rgba(255, 255, 255, 0.1);
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 20px;
+            transition: all 0.2s;
+            cursor: pointer;
+            pointer-events: auto;
+            width: 140px;
+        }
+        .char-card:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #fbbf24;
+        }
+        .energy-bar-bg {
+            width: 100%;
+            height: 14px;
+            background: rgba(0,0,0,0.4);
+            border: 1.5px solid white;
+            border-radius: 7px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        #energy-fill {
+            height: 100%;
+            width: 100%;
+            background: #22c55e;
+            transition: width 0.3s ease-out;
+        }
+        .game-text {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- UI Overlay während des Spiels -->
+    <div class="ui-overlay" id="game-ui" style="display: none;">
+        <div class="flex justify-between items-start w-full pointer-events-none">
+            <div class="w-1/2">
+                <div class="text-lg font-black game-text uppercase tracking-wider" id="phase-display">Tag</div>
+                <div class="energy-bar-bg">
+                    <div id="energy-fill"></div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-xl font-black game-text">Punkte: <span id="score-display">0</span></div>
+                <div id="timer-display" class="text-xs font-bold opacity-90 game-text">Iftar in: 15s</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Startmenü / Charakterauswahl -->
+    <div id="start-menu" class="menu-screen">
+        <h1 class="text-4xl font-black mb-2 text-yellow-400 uppercase tracking-tighter game-text">Ramadan</h1>
+        <h2 class="text-2xl font-bold mb-10 text-white opacity-90 game-text">Simulator</h2>
+        
+        <p class="text-lg font-bold mb-6 text-white uppercase tracking-widest">Wähle Held:</p>
+        
+        <div class="flex gap-6 mb-10">
+            <!-- Männlich -->
+            <div class="char-card flex flex-col items-center" onclick="startGame('m')">
+                <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-4 border-2 border-white/50">
+                    <svg width="50" height="50" viewBox="0 0 100 100">
+                        <circle cx="50" cy="35" r="25" fill="#FFDBAC" />
+                        <path d="M25 35 Q50 10 75 35 L75 40 Q50 45 25 40 Z" fill="#FFFFFF" />
+                        <path d="M30 70 Q50 100 70 70 L85 100 L15 100 Z" fill="#3B82F6" />
+                    </svg>
+                </div>
+                <span class="text-white text-xl font-black uppercase tracking-tighter">Männlich</span>
+            </div>
+            
+            <!-- Weiblich -->
+            <div class="char-card flex flex-col items-center" onclick="startGame('f')">
+                <div class="w-20 h-20 bg-pink-600 rounded-full flex items-center justify-center mb-4 border-2 border-white/50">
+                    <svg width="50" height="50" viewBox="0 0 100 100">
+                        <circle cx="50" cy="40" r="25" fill="#FFDBAC" />
+                        <path d="M20 40 Q20 10 50 10 Q80 10 80 40 L85 80 Q50 90 15 80 Z" fill="#FFFFFF" />
+                        <path d="M30 80 L70 80 L80 100 L20 100 Z" fill="#EC4899" />
+                    </svg>
+                </div>
+                <span class="text-white text-xl font-black uppercase tracking-tighter">Weiblich</span>
+            </div>
+        </div>
+
+        <div class="bg-black/40 p-4 rounded-xl max-w-[280px]">
+            <p class="text-xs text-yellow-200 font-bold uppercase mb-1">Spielregeln:</p>
+            <p class="text-[11px] text-white leading-tight">
+                Tagsüber: Essen ausweichen!<br>
+                Nachts: Essen sammeln für Energie!
+            </p>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over" class="menu-screen" style="display: none;">
+        <h1 class="text-4xl font-black mb-2 text-red-500 uppercase game-text">Eid Mubarak!</h1>
+        <p class="text-white font-bold mb-6">Dein Fasten war erfolgreich.</p>
+        <div class="bg-white/10 p-6 rounded-2xl mb-10 w-64">
+            <p class="text-sm text-gray-400 uppercase font-bold">Punkte</p>
+            <p class="text-5xl font-black text-yellow-400" id="final-score">0</p>
+        </div>
+        <button class="px-10 py-4 bg-yellow-500 text-black font-black rounded-full text-xl uppercase tracking-tighter active:scale-95 transition-transform" onclick="location.reload()">Nochmal</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const uiOverlay = document.getElementById('game-ui');
+    const energyFill = document.getElementById('energy-fill');
+    const scoreDisplay = document.getElementById('score-display');
+    const timerDisplay = document.getElementById('timer-display');
+    const phaseDisplay = document.getElementById('phase-display');
+
+    // Festes internes Koordinatensystem (9:16)
+    const WORLD_W = 360;
+    const WORLD_H = 640;
+    const PLAYER_SIZE = 60;
+    const ITEM_SIZE = 40;
+    const PHASE_TIME = 15000; 
+
+    canvas.width = WORLD_W;
+    canvas.height = WORLD_H;
+
+    let gameActive = false;
+    let score = 0;
+    let energy = 100;
+    let currentPhase = 'day'; 
+    let phaseTimer = PHASE_TIME;
+    let lastTime = 0;
+    let playerGender = 'm';
+
+    const player = {
+        x: WORLD_W / 2 - PLAYER_SIZE / 2,
+        y: WORLD_H - PLAYER_SIZE - 40,
+        targetX: WORLD_W / 2 - PLAYER_SIZE / 2
+    };
+
+    let items = [];
+
+    function drawPlayer(ctx, x, y, gender) {
+        ctx.save();
+        // Schatten
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
+        ctx.beginPath();
+        ctx.ellipse(x + 30, y + 65, 25, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Kopf
+        ctx.fillStyle = "#FFDBAC";
+        ctx.beginPath();
+        ctx.arc(x + 30, y + 25, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (gender === 'f') {
+            // Hijab
+            ctx.fillStyle = "#FFFFFF";
+            ctx.beginPath();
+            ctx.ellipse(x + 30, y + 22, 23, 26, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#FFDBAC";
+            ctx.beginPath();
+            ctx.ellipse(x + 30, y + 25, 13, 16, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Kleid
+            ctx.fillStyle = "#EC4899";
+            ctx.beginPath();
+            ctx.moveTo(x + 12, y + 45);
+            ctx.lineTo(x + 48, y + 45);
+            ctx.lineTo(x + 58, y + 65);
+            ctx.lineTo(x + 2, y + 65);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            // Kufi
+            ctx.fillStyle = "#FFFFFF";
+            ctx.beginPath();
+            ctx.arc(x + 30, y + 15, 18, Math.PI, 0);
+            ctx.fill();
+            // Thobe
+            ctx.fillStyle = "#3B82F6";
+            ctx.fillRect(x + 15, y + 43, 30, 22);
+        }
+
+        // Augen
+        ctx.fillStyle = "#1e293b";
+        ctx.beginPath();
+        ctx.arc(x + 24, y + 26, 2.5, 0, Math.PI * 2);
+        ctx.arc(x + 36, y + 26, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function drawItem(ctx, item) {
+        ctx.save();
+        if (item.type === 'food') {
+            // Dattel
+            ctx.fillStyle = "#5c4033";
+            ctx.beginPath();
+            ctx.ellipse(item.x + 20, item.y + 20, 15, 11, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#3d2b22";
+            ctx.beginPath();
+            ctx.arc(item.x + 15, item.y + 16, 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Wasser
+            ctx.fillStyle = "#60a5fa";
+            ctx.beginPath();
+            ctx.moveTo(item.x + 10, item.y + 10);
+            ctx.lineTo(item.x + 30, item.y + 10);
+            ctx.lineTo(item.x + 26, item.y + 35);
+            ctx.lineTo(item.x + 14, item.y + 35);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = "rgba(255,255,255,0.3)";
+            ctx.fillRect(item.x + 14, item.y + 15, 10, 3);
+        }
+        ctx.restore();
+    }
+
+    function startGame(gender) {
+        playerGender = gender;
+        document.getElementById('start-menu').style.display = 'none';
+        document.getElementById('game-over').style.display = 'none';
+        uiOverlay.style.display = 'block';
+        
+        score = 0;
+        energy = 100;
+        currentPhase = 'day';
+        phaseTimer = PHASE_TIME;
+        items = [];
+        gameActive = true;
+        
+        requestAnimationFrame(gameLoop);
+    }
+
+    function gameOver() {
+        gameActive = false;
+        document.getElementById('game-over').style.display = 'flex';
+        document.getElementById('final-score').innerText = Math.floor(score);
+    }
+
+    function spawnItem() {
+        const type = Math.random() > 0.4 ? 'food' : 'water';
+        const spawnX = 10 + Math.random() * (WORLD_W - 20 - ITEM_SIZE);
+        
+        items.push({
+            x: spawnX,
+            y: -ITEM_SIZE,
+            type: type,
+            speed: 1.5 + Math.random() * 1.5
+        });
+    }
+
+    // Input Handling (Touch & Mouse)
+    const handleMove = (clientX) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = WORLD_W / rect.width;
+        player.targetX = (clientX - rect.left) * scaleX - PLAYER_SIZE / 2;
+    };
+
+    window.addEventListener('mousemove', (e) => {
+        if (gameActive) handleMove(e.clientX);
+    });
+
+    window.addEventListener('touchmove', (e) => {
+        if (gameActive) {
+            e.preventDefault();
+            handleMove(e.touches[0].clientX);
+        }
+    }, { passive: false });
+
+    function update(deltaTime) {
+        if (!gameActive) return;
+
+        // Player Lerp für geschmeidige Bewegung
+        const dx = player.targetX - player.x;
+        player.x += dx * 0.2;
+
+        if (player.x < 0) player.x = 0;
+        if (player.x > WORLD_W - PLAYER_SIZE) player.x = WORLD_W - PLAYER_SIZE;
+
+        // Phase Switch
+        phaseTimer -= deltaTime;
+        if (phaseTimer <= 0) {
+            currentPhase = currentPhase === 'day' ? 'night' : 'day';
+            phaseTimer = PHASE_TIME;
+            if (currentPhase === 'day') {
+                canvas.style.background = 'linear-gradient(to bottom, #87CEEB, #E0F6FF)';
+                phaseDisplay.innerText = "Fastenzeit";
+                phaseDisplay.classList.remove('text-yellow-400');
+                phaseDisplay.classList.add('text-blue-900');
+            } else {
+                canvas.style.background = 'linear-gradient(to bottom, #0f172a, #1e293b)';
+                phaseDisplay.innerText = "Iftar Zeit";
+                phaseDisplay.classList.remove('text-blue-900');
+                phaseDisplay.classList.add('text-yellow-400');
+            }
+        }
+
+        // Energie-Logik
+        energy -= (currentPhase === 'day' ? 0.08 : 0.04);
+        if (energy <= 0) { energy = 0; gameOver(); }
+
+        // Spawn Rate
+        if (Math.random() < 0.015) spawnItem();
+
+        // Items logic
+        for (let i = items.length - 1; i >= 0; i--) {
+            items[i].y += items[i].speed;
+
+            // Collision
+            if (
+                items[i].y + ITEM_SIZE - 10 > player.y &&
+                items[i].y < player.y + PLAYER_SIZE - 10 &&
+                items[i].x + ITEM_SIZE - 5 > player.x &&
+                items[i].x < player.x + PLAYER_SIZE - 5
+            ) {
+                if (currentPhase === 'day') {
+                    score = Math.max(0, score - 25); 
+                    energy -= 10;
+                } else {
+                    score += 20;
+                    energy = Math.min(100, energy + 12);
+                }
+                items.splice(i, 1);
+                continue;
+            }
+
+            // Remove
+            if (items[i].y > WORLD_H) {
+                if (currentPhase === 'day') score += 2; 
+                items.splice(i, 1);
+            }
+        }
+
+        // UI Refresh
+        scoreDisplay.innerText = Math.floor(score);
+        timerDisplay.innerText = `${currentPhase === 'day' ? 'Iftar' : 'Suhur'} in: ${Math.ceil(phaseTimer / 1000)}s`;
+        energyFill.style.width = energy + '%';
+        
+        if (energy < 30) energyFill.style.background = '#ef4444';
+        else if (energy < 60) energyFill.style.background = '#fbbf24';
+        else energyFill.style.background = '#22c55e';
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, WORLD_W, WORLD_H);
+
+        // Sonne / Mond
+        if (currentPhase === 'day') {
+            ctx.fillStyle = "#fbbf24";
+            ctx.beginPath();
+            ctx.arc(WORLD_W - 50, 60, 20, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = "#fde68a";
+            ctx.beginPath();
+            ctx.arc(WORLD_W - 50, 60, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.beginPath();
+            ctx.arc(WORLD_W - 40, 52, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        items.forEach(item => drawItem(ctx, item));
+        drawPlayer(ctx, player.x, player.y, playerGender);
+    }
+
+    function gameLoop(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        const deltaTime = timestamp - lastTime;
+        lastTime = timestamp;
+
+        update(deltaTime);
+        draw();
+
+        if (gameActive) requestAnimationFrame(gameLoop);
+    }
+</script>
+
+</body>
+</html>
