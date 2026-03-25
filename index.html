@@ -367,7 +367,7 @@
         }
 
         // Energie-Logik
-        energy -= (currentPhase === 'day' ? 0.08 : 0.04);
+        energy -= (currentPhase === 'day' ? 0.06 : 0.03);
         if (energy <= 0) { energy = 0; gameOver(); }
 
         // Spawn Rate
